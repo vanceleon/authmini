@@ -2,11 +2,35 @@ const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const db = require("./database/dbConfig.js");
+const session = require('express-session');
+//require your library store
+const KnexSessionStore = require('connect-session-knex')(session);
 
 const server = express();
+const sessionConfig = {
+  name: 'monkey', // default is connect.sid
+  secret: 'nobody tosses a dwarf!',
+  cookie: {
+    maxAge: 1 * 24 * 60 * 60 * 1000, // a day
+    secure: false, // only set cookies over https. Server will not send back a cookie over http.
+  }, // 1 day in milliseconds
+  httpOnly: true, // don't let JS code access cookies. Browser extensions run JS code on your browser!
+  resave: false,
+  saveUninitialized: false,
+  store: new KnexSessionStore({
+    tablename: 'sessions',
+    sidfieldname: 'sid',
+    knex: db,
+    createtable: true,
+    clearInterval: 1000 * 60 * 60,
+  }),
+};
+
+server.use(session(sessionConfig));
 
 server.use(express.json());
 server.use(cors());
+
 
 server.get("/", (req, res) => {
   res.send("Its Alive!");
@@ -46,7 +70,7 @@ server.post("/api/register", (req, res) => {
       .then(user => {
         //check creds
         if(user && bcrypt.compareSync(creds.password, user.password)) {
-          res.status(200).send('Welcome');
+          res.status(200).send(`Welcome ${req.session.username}`);
         }else{
           res.status(401).json({message:"You shall not pass!"});
         }
@@ -55,26 +79,15 @@ server.post("/api/register", (req, res) => {
     //check the creds
   });
 
-// server.post("/api/login", (req, res) => {
-//   // grab credentials
-//   const creds = req.body;
-
-//   // find the user
-//   db("users")
-//     .where({ username: creds.username })
-//     .first()
-//     .then(user => {
-//       if (user && bcrypt.compareSync(creds.password, user.password)) {
-//         res.status(200).send('Welcome');
-//       } else {
-//         res.status(401).json({ Error: "Cannot Authorize" });
-//       }
-//     })
-//     .catch(err => {
-//       console.log(err);
-//       res.status(500).json({ Error: "Login Failed" });
-//     });
-// });
+  server.get('/setname', (req, res) => {
+    req.session.name = 'Frodo';
+    res.send('got it');
+  });
+  
+  server.get('/greet', (req, res) => {
+    const name = req.session.name;
+    res.send(`hello ${req.session.name}`);
+  });
 
 
 // protect this route, only authenticated users should see it
